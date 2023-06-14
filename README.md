@@ -4,7 +4,7 @@ I saw leijruvs vid about the auto elytra flight and looked at it and it was all 
 
 check releases for the elytra jar, or build from source
 
-Compile the pathfinder yourself:
+# Compile the pathfinder yourself:
 
 ```
 g++ -std=c++20 -Wall -g -O0 -L. -o nether_pathfinder_exe *.cpp *.h
