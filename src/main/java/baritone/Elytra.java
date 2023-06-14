@@ -36,28 +36,52 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 
 public class Elytra extends Behavior implements Helper {
 
+    private boolean enabled = false;
+
     public static List<BetterBlockPos> path = new ArrayList<>();
 
-    static {
+    public static File getNetherPathFinderFolder() throws IOException {
+        File netherPathFinderFolder = new File(mc.gameDir, "nether-pathfinder/");
+        netherPathFinderFolder.mkdirs();
+
+        File pathFile = new File(netherPathFinderFolder, "path.txt");
+        if (!pathFile.exists()) {
+            pathFile.createNewFile();
+        }
+
+        return pathFile;
+    }
+
+    public static void refreshFile() {
 
         try {
-            DataInputStream in = new DataInputStream(new FileInputStream(new File("/Users/leijurv/Dropbox/nether-pathfinder/build/test")));
-            int count = in.readInt();
-            System.out.println("Count: " + count);
-            for (int i = 0; i < count; i++) {
-                path.add(new BetterBlockPos((int) in.readDouble(), (int) in.readDouble(), (int) in.readDouble()));
+            BufferedReader reader = new BufferedReader(new FileReader(getNetherPathFinderFolder()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] xyz = line.split(",");
+                if (xyz.length == 3) {
+                    int x = Integer.parseInt(xyz[0].trim());
+                    int y = Integer.parseInt(xyz[1].trim());
+                    int z = Integer.parseInt(xyz[2].trim());
+                    path.add(new BetterBlockPos(x, y, z));
+                }
             }
+            reader.close();
             removeBacktracks();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    static {
+        refreshFile();
     }
 
     public int playerNear;
@@ -201,7 +225,7 @@ public class Elytra extends Behavior implements Helper {
 
     public List<Pair<Vec3d, Vec3d>> lines = new ArrayList<>();
 
-    protected Elytra(Baritone baritone) {
+    public Elytra(Baritone baritone) {
         super(baritone);
     }
 
@@ -211,6 +235,10 @@ public class Elytra extends Behavior implements Helper {
         if (event.getType() == TickEvent.Type.OUT) {
             return;
         }
+        if (!enabled) {
+            return;
+        }
+
         fixNearPlayer();
         baritone.getInputOverrideHandler().clearAllKeys();
         lines.clear();
@@ -533,5 +561,9 @@ public class Elytra extends Behavior implements Helper {
             }
         }
         return null;
+    }
+
+    public void toggle() {
+        enabled = !enabled;
     }
 }

@@ -88,7 +88,7 @@ public class Baritone implements IBaritone {
 
     private IPlayerContext playerContext;
     private WorldProvider worldProvider;
-    public Elytra elytra;
+    public static Elytra elytra;
 
     public BlockStateInterface bsi;
 
