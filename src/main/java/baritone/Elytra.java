@@ -25,6 +25,7 @@ import baritone.api.utils.RotationUtils;
 import baritone.behavior.Behavior;
 import baritone.utils.BlockStateInterface;
 import com.mojang.realmsclient.util.Pair;
+import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.item.EntityFireworkRocket;
@@ -36,9 +37,10 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.*;
 
 public class Elytra extends Behavior implements Helper {
@@ -83,6 +85,8 @@ public class Elytra extends Behavior implements Helper {
     static {
         refreshFile();
     }
+
+    int pathIter = 0;
 
     public int playerNear;
     public int goingTo;
@@ -137,7 +141,7 @@ public class Elytra extends Behavior implements Helper {
         return Math.abs(start.getX() - dest.getX()) + Math.abs(start.getY() - dest.getY()) + Math.abs(start.getZ() - dest.getZ());
     }
 
-    private class SearchNode {
+    private static class SearchNode {
         BetterBlockPos pos;
         int dist;
         int heuristic;
@@ -239,6 +243,13 @@ public class Elytra extends Behavior implements Helper {
             return;
         }
 
+        if (path.size() <= pathIter){
+            path.clear();
+            toggle();
+            logDirect("WE MADE IT!");
+            return;
+        }
+
         fixNearPlayer();
         baritone.getInputOverrideHandler().clearAllKeys();
         lines.clear();
@@ -263,13 +274,11 @@ public class Elytra extends Behavior implements Helper {
                 ctx.playerController().processRightClick(ctx.player(), ctx.world(), EnumHand.MAIN_HAND);
                 sinceFirework = 0;
             }
-            long t = System.currentTimeMillis();
             for (int relaxation = 0; relaxation < 3; relaxation++) { // try for a strict solution first, then relax more and more (if we're in a corner or near some blocks, it will have to relax its constraints a bit)
                 int[] heights = firework ? new int[]{20, 10, 5, 0} : new int[]{0}; // attempt to gain height, if we can, so as not to waste the boost
                 boolean requireClear = relaxation == 0;
                 int steps = relaxation < 2 ? firework ? 5 : Baritone.settings().elytraSimulationTicks.value : 3;
                 int lookahead = relaxation == 0 ? 2 : 3; // ideally this would be expressed as a distance in blocks, rather than a number of voxel steps
-                //int minStep = Math.max(0, playerNear - relaxation);
                 int minStep = playerNear;
                 for (int i = Math.min(playerNear + 20, path.size() - 1); i >= minStep; i--) {
                     for (int dy : heights) {
@@ -291,16 +300,14 @@ public class Elytra extends Behavior implements Helper {
                             }
                         }
                         if (requireClear ? isClear(start, dest) : clearView(start, dest)) {
+                            pathIter++;
                             Rotation rot = RotationUtils.calcRotationFromVec3d(start, dest, ctx.playerRotations());
                             ctx.player().rotationYaw = rot.getYaw();
-                            long a = System.currentTimeMillis();
                             Float pitch = solvePitch(dest.subtract(start), steps, relaxation == 2);
                             if (pitch == null) {
                                 continue;
                             }
-                            long b = System.currentTimeMillis();
                             ctx.player().rotationPitch = pitch;
-                            System.out.println("Solved pitch in " + (b - a) + " total time " + (b - t));
                             goingTo = i;
                             goal = path.get(i).add(0, dy, 0);
                             return;
@@ -365,9 +372,8 @@ public class Elytra extends Behavior implements Helper {
                     }
                 }
             }
-            double directionalGoodness = goalDirection.dotProduct(totalMotion.normalize());
             // tried to incorporate a "speedGoodness" but it kept making it do stupid stuff (aka always losing altitude)
-            double goodness = directionalGoodness;
+            double goodness = goalDirection.dotProduct(totalMotion.normalize());
             if (goodness > bestDot) {
                 bestDot = goodness;
                 bestPitch = pitch;
@@ -399,9 +405,6 @@ public class Elytra extends Behavior implements Helper {
         double flatMotion = Math.sqrt(motionX * motionX + motionZ * motionZ);
         double thisIsAlwaysOne = lookDirection.length();
         float pitchBase3 = MathHelper.cos(pitchRadians);
-        //System.out.println("always the same lol " + -pitchBase + " " + pitchBase3);
-        //System.out.println("always the same lol " + Math.abs(pitchBase3) + " " + pitchBase2);
-        //System.out.println("always 1 lol " + thisIsAlwaysOne);
         pitchBase3 = (float) ((double) pitchBase3 * (double) pitchBase3 * Math.min(1, thisIsAlwaysOne / 0.4));
         motionY += -0.08 + (double) pitchBase3 * 0.06;
         if (motionY < 0 && pitchBase2 > 0) {
@@ -423,7 +426,6 @@ public class Elytra extends Behavior implements Helper {
         motionX *= 0.99;
         motionY *= 0.98;
         motionZ *= 0.99;
-        //System.out.println(motionX + " " + motionY + " " + motionZ);
 
         return new Vec3d(motionX, motionY, motionZ);
     }
